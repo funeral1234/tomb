@@ -1,0 +1,45 @@
+name: 儲存訂閱資料
+
+on:
+  workflow_dispatch:
+    inputs:
+      subscription:
+        description: 'Push subscription JSON string'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  add-subscription:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 寫入訂閱
+        run: |
+          node -e "
+          const fs = require('fs');
+          const subs = JSON.parse(fs.readFileSync('fatdudoo/subscriptions.json', 'utf8'));
+          const newSub = JSON.parse(process.env.SUBSCRIPTION);
+          const idx = subs.findIndex(s => s.endpoint === newSub.endpoint);
+          if (idx >= 0) {
+            subs[idx] = newSub;
+            console.log('更新已存在的訂閱');
+          } else {
+            subs.push(newSub);
+            console.log('新增訂閱，目前共 ' + subs.length + ' 個');
+          }
+          fs.writeFileSync('fatdudoo/subscriptions.json', JSON.stringify(subs, null, 2));
+          "
+        env:
+          SUBSCRIPTION: ${{ inputs.subscription }}
+
+      - name: Commit 訂閱
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add fatdudoo/subscriptions.json
+          git diff --staged --quiet || git commit -m "chore: add push subscription"
+          git push

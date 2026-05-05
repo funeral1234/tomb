@@ -1,0 +1,28 @@
+name: 每週二發送下午茶通知
+
+on:
+  schedule:
+    - cron: '40 1 * * 2'   # 每週二 01:40 UTC = 台灣時間 09:40
+  workflow_dispatch:         # 手動觸發（測試用）
+
+jobs:
+  send-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安裝 web-push
+        run: npm install web-push
+
+      - name: 發送推送通知
+        run: node fatdudoo/send-push.js
+        env:
+          VAPID_PUBLIC_KEY:  ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT:     ${{ secrets.VAPID_SUBJECT }}
+          JSONBIN_BIN_ID:    ${{ secrets.JSONBIN_BIN_ID }}
+          JSONBIN_MASTER_KEY: ${{ secrets.JSONBIN_MASTER_KEY }}

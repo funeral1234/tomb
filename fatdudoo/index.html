@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+    <meta charset="UTF-8">
+    <title>胖肚肚下午茶福利</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            font-family: sans-serif;
+            color: #333;
+            background: #f9fafb;
+        }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #f59e0b;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
+
+        #sub-status {
+            font-size: 13px;
+            color: #888;
+            margin-top: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="loader"></div>
+    <h2 id="status">正在請求通知權限並跳轉到「胖肚肚下午茶福利」</h2>
+    <p id="sub-status"></p>
+    <script>
+        const targetUrl = "https://funeral1234.github.io/tomb/fatdudoo/fatdudoo.html";
+
+        // ==============================
+        // ⚙️ 設定區（填入你自己的值）
+        // ==============================
+        const VAPID_PUBLIC_KEY = "BGTQHq9fVkf7dRwSVy4zcfTXDVpgGUPj6eTc97G_G4Nm7H3t4-lAChsk7mr9Z3YlSIK5EraMn7SBTWIX1wa9dxE";
+        const JSONBIN_BIN_ID = "69f9b35c36566621a8288d9c";   // JSONBin 建立後取得
+        const JSONBIN_ACCESS_KEY = "$2a$10$qeEDQ68Hy8fvQI2/OmPeUu9crDphvfngin7A9.84NmtTCcWK/c41K";     // JSONBin 寫入專用 key
+        // ==============================
+
+        function urlBase64ToUint8Array(base64String) {
+            base64String = base64String.trim();
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const output = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; i++) output[i] = rawData.charCodeAt(i);
+            return output;
+        }
+
+        function setStatus(msg) {
+            document.getElementById('sub-status').textContent = msg;
+        }
+
+        async function subscribeToPush(registration) {
+            let sub = await registration.pushManager.getSubscription();
+            if (!sub) {
+                sub = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                });
+            }
+            const newSub = sub.toJSON();
+            setStatus("📡 正在儲存訂閱...");
+
+            try {
+                // 1. 讀取現有訂閱列表
+                const readResp = await fetch(
+                    `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}/latest`,
+                    { headers: { 'X-Access-Key': JSONBIN_ACCESS_KEY } }
+                );
+                const data = await readResp.json();
+                const subs = Array.isArray(data.record) ? data.record : [];
+
+                // 2. 去重後加入（用 endpoint 當唯一 key）
+                const idx = subs.findIndex(s => s.endpoint === newSub.endpoint);
+                if (idx >= 0) subs[idx] = newSub;
+                else subs.push(newSub);
+
+                // 3. 寫回 JSONBin
+                const writeResp = await fetch(
+                    `https://api.jsonbin.io/v3/b/${JSONBIN_BIN_ID}`,
+                    {
+                        method: 'PUT',
+                        headers: {
+                            'X-Access-Key': JSONBIN_ACCESS_KEY,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(subs)
+                    }
+                );
+
+                if (writeResp.ok) {
+                    setStatus("✅ 已訂閱！每週二 09:50 會自動推送通知");
+                } else {
+                    setStatus("⚠️ 訂閱儲存失敗（" + writeResp.status + "），請截圖回報");
+                }
+            } catch (e) {
+                console.error("儲存失敗:", e);
+                setStatus("⚠️ 儲存失敗：" + e.message);
+            }
+        }
+
+        async function initService() {
+            if (!("Notification" in window)) {
+                setStatus("⚠️ 此瀏覽器不支援通知");
+                document.location.href=targetUrl;
+                return;
+            }
+
+            const permission = await Notification.requestPermission();
+
+            if (permission !== "granted") {
+                setStatus("❌ 通知權限被拒絕，請到瀏覽器設定開啟");
+                setTimeout(() => { window.location.href = targetUrl; }, 2000);
+                return;
+            }
+
+            if ("serviceWorker" in navigator) {
+                try {
+                    const registration = await navigator.serviceWorker.register('sw.js?v=4');
+                    await navigator.serviceWorker.ready;
+                    await subscribeToPush(registration);
+                } catch (e) {
+                    console.error("錯誤:", e);
+                    setStatus("⚠️ 訂閱失敗：" + e.message);
+                }
+            }
+
+            setTimeout(() => {
+                window.location.href = targetUrl;
+            }, 1000);
+        }
+
+        initService();
+    </script>
+</body>
+
+</html>
